@@ -5,6 +5,9 @@ on:
     tags:
       - '*.*.*'
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -15,39 +18,45 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build Linux binaries in manylinux2014
+    - name: Install Linux build dependencies
       run: |
-        docker run --rm \
-          -v "$PWD":/io \
-          -w /io \
-          quay.io/pypa/manylinux2014_x86_64 \
-          /bin/bash -lc '
-            yum -y install glibc-devel.i686 libgcc.i686 curl
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib libc6-dev-i386
 
-            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
-            source "$HOME/.cargo/env"
+    - name: Install stable toolchain
+      run: |
+        rustup toolchain install stable --profile minimal
+        rustup default stable
 
-            rustup target add x86_64-unknown-linux-gnu
-            rustup target add i686-unknown-linux-gnu
+    - name: Add Linux targets
+      run: |
+        rustup target add i686-unknown-linux-gnu
+        rustup target add x86_64-unknown-linux-gnu
 
-            cargo build --release --target i686-unknown-linux-gnu
-            cargo build --release --target x86_64-unknown-linux-gnu
+    - name: Build Linux 32-bit
+      run: cargo build --release --target i686-unknown-linux-gnu
 
-            strip target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
-            strip target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
+    - name: Build Linux 64-bit
+      run: cargo build --release --target x86_64-unknown-linux-gnu
 
-            mv target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so target/i686-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux.dll
-            mv target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so target/x86_64-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux64.dll
-          '
+    - name: Strip debug symbols
+      run: |
+        strip target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
+        strip target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
+    - name: Rename Linux binaries
+      run: |
+        mkdir -p dist
+        cp target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so dist/gmsv_maxminddb_geoip_linux.dll
+        cp target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so dist/gmsv_maxminddb_geoip_linux64.dll
+
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          target/i686-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux.dll
-          target/x86_64-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux64.dll
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: linux-binaries
+        path: |
+          dist/gmsv_maxminddb_geoip_linux.dll
+          dist/gmsv_maxminddb_geoip_linux64.dll
 
   build_windows:
     runs-on: windows-latest
@@ -57,32 +66,69 @@ jobs:
 
     - name: Install stable toolchain
       run: |
-        rustup toolchain install stable
+        rustup toolchain install stable --profile minimal
         rustup default stable
 
-    - name: Add targets
-      run: rustup target add x86_64-pc-windows-msvc && rustup target add i686-pc-windows-msvc
+    - name: Add Windows targets
+      run: |
+        rustup target add x86_64-pc-windows-msvc
+        rustup target add i686-pc-windows-msvc
 
-    - name: Build 64-bit
+    - name: Build Windows 64-bit
       run: cargo build --release --target x86_64-pc-windows-msvc
       env:
         RUSTFLAGS: -Ctarget-feature=+crt-static
 
-    - name: Build 32-bit
+    - name: Build Windows 32-bit
       run: cargo build --release --target i686-pc-windows-msvc
       env:
         RUSTFLAGS: -Ctarget-feature=+crt-static
 
-    - name: Rename binaries
+    - name: Rename Windows binaries
+      shell: pwsh
       run: |
-        mv target/i686-pc-windows-msvc/release/gm_maxminddb_geoip.dll target/i686-pc-windows-msvc/release/gmsv_maxminddb_geoip_win32.dll
-        mv target/x86_64-pc-windows-msvc/release/gm_maxminddb_geoip.dll target/x86_64-pc-windows-msvc/release/gmsv_maxminddb_geoip_win64.dll
+        New-Item -ItemType Directory -Force -Path dist | Out-Null
+        Copy-Item target/i686-pc-windows-msvc/release/gm_maxminddb_geoip.dll dist/gmsv_maxminddb_geoip_win32.dll
+        Copy-Item target/x86_64-pc-windows-msvc/release/gm_maxminddb_geoip.dll dist/gmsv_maxminddb_geoip_win64.dll
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          target/i686-pc-windows-msvc/release/gmsv_maxminddb_geoip_win32.dll
-          target/x86_64-pc-windows-msvc/release/gmsv_maxminddb_geoip_win64.dll
+        name: windows-binaries
+        path: |
+          dist/gmsv_maxminddb_geoip_win32.dll
+          dist/gmsv_maxminddb_geoip_win64.dll
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - build_linux
+      - build_windows
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: '*-binaries'
+        path: dist
+        merge-multiple: true
+
+    - name: Show release files
+      run: ls -la dist
+
+    - name: Create draft release with all assets
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "${GITHUB_REF_NAME}" dist/* \
+          --title "${GITHUB_REF_NAME}" \
+          --draft \
+          --verify-tag
+
+    - name: Publish release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release edit "${GITHUB_REF_NAME}" --draft=false
