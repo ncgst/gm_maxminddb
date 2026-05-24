@@ -65,21 +65,24 @@ fn init_dbs() -> Result<Databases, DBError> {
 		default: open_first_existing(&[
 			"garrysmod/maxminddb.mmdb",
 			"garrysmod/data/maxminddb.dat",
+			"garrysmod/data/maxminddb.mmdb",
 		])?,
 
 		asn: open_required(
-			"GeoLite2-ASN.mmdb; expected garrysmod/GeoLite2-ASN.mmdb or garrysmod/data/GeoLite2-ASN.mmdb",
+			"maxminddb_asn.mmdb; expected garrysmod/maxminddb_asn.mmdb or garrysmod/data/maxminddb_asn.dat",
 			&[
-				"garrysmod/GeoLite2-ASN.mmdb",
-				"garrysmod/data/GeoLite2-ASN.mmdb",
+				"garrysmod/maxminddb_asn.mmdb",
+				"garrysmod/data/maxminddb_asn.dat",
+				"garrysmod/data/maxminddb_asn.mmdb",
 			],
 		)?,
 
 		country: open_required(
-			"GeoLite2-Country.mmdb; expected garrysmod/GeoLite2-Country.mmdb or garrysmod/data/GeoLite2-Country.mmdb",
+			"GeoLite2-Country.mmdb; expected garrysmod/maxminddb_country.mmdb or garrysmod/data/maxminddb_country.dat",
 			&[
-				"garrysmod/GeoLite2-Country.mmdb",
-				"garrysmod/data/GeoLite2-Country.mmdb",
+				"garrysmod/maxminddb_country.mmdb",
+				"garrysmod/data/maxminddb_country.dat",
+				"garrysmod/data/maxminddb_country.mmdb",
 			],
 		)?,
 	})
