@@ -118,20 +118,6 @@ GeoLite2-Country.mmdb
 | ISP name / organisation beyond ASN organisation | Paid GeoIP2 ISP database |
 | VPN / proxy / hosting / Tor detection | Anonymous IP database or another IP risk provider |
 
-For the CedMod-style output you described, `GeoLite2-ASN.mmdb` + `GeoLite2-Country.mmdb` is enough for this part:
-
-```lua
-network = {
-    asn = "AS25820",
-    range = "67.216.192.0/19",
-    hostname = nil,
-    provider = "IT7 Networks Inc",
-    organisation = "IT7 Networks Inc"
-}
-```
-
-`hostname` will be `nil`, because GeoLite2 ASN and GeoLite2 Country do not contain reverse DNS hostnames.
-
 ---
 
 # Loading the module
@@ -611,32 +597,6 @@ Country and ASN blocking can cause false positives, especially for:
 - corporate networks
 
 Use logs, allowlists, and appeal handling if you enforce network-based restrictions.
-
----
-
-# Example CedMod-style output
-
-```lua
-local info, err = maxminddb.ip_info("67.216.201.1", "en")
-
-if not info then
-    error(err)
-end
-
-PrintTable(info.network)
-```
-
-Example shape:
-
-```lua
-network = {
-    asn = "AS25820",
-    range = "67.216.192.0/19",
-    hostname = nil,
-    provider = "IT7 Networks Inc",
-    organisation = "IT7 Networks Inc"
-}
-```
 
 ---
 
