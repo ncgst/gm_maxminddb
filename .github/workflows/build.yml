@@ -11,41 +11,37 @@ env:
 jobs:
   build_linux:
     runs-on: ubuntu-latest
-    container: quay.io/pypa/manylinux2014_x86_64
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Install build dependencies
-      run: yum -y install glibc-devel.i686 libgcc.i686
-
-    - name: Install stable toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
-
-    - name: Add targets
-      run: rustup target add x86_64-unknown-linux-gnu && rustup target add i686-unknown-linux-gnu
-
-    - name: Build 32-bit
-      run: cargo build --release --target i686-unknown-linux-gnu
-
-    - name: Build 64-bit
-      run: cargo build --release --target x86_64-unknown-linux-gnu
-
-    - name: Strip debug symbols
+    - name: Build Linux binaries in manylinux2014
       run: |
-        strip target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
-        strip target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
+        docker run --rm \
+          -v "$PWD":/io \
+          -w /io \
+          quay.io/pypa/manylinux2014_x86_64 \
+          /bin/bash -lc '
+            yum -y install glibc-devel.i686 libgcc.i686 curl
 
-    - name: Rename binaries
-      run: |
-        mv target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so target/i686-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux.dll
-        mv target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so target/x86_64-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux64.dll
+            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
+            source "$HOME/.cargo/env"
+
+            rustup target add x86_64-unknown-linux-gnu
+            rustup target add i686-unknown-linux-gnu
+
+            cargo build --release --target i686-unknown-linux-gnu
+            cargo build --release --target x86_64-unknown-linux-gnu
+
+            strip target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
+            strip target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so
+
+            mv target/i686-unknown-linux-gnu/release/libgm_maxminddb_geoip.so target/i686-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux.dll
+            mv target/x86_64-unknown-linux-gnu/release/libgm_maxminddb_geoip.so target/x86_64-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux64.dll
+          '
 
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           target/i686-unknown-linux-gnu/release/gmsv_maxminddb_geoip_linux.dll
@@ -55,8 +51,9 @@ jobs:
 
   build_windows:
     runs-on: windows-latest
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Install stable toolchain
       run: |
@@ -82,7 +79,7 @@ jobs:
         mv target/x86_64-pc-windows-msvc/release/gm_maxminddb_geoip.dll target/x86_64-pc-windows-msvc/release/gmsv_maxminddb_geoip_win64.dll
 
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           target/i686-pc-windows-msvc/release/gmsv_maxminddb_geoip_win32.dll
